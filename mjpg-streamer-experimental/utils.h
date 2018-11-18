@@ -48,8 +48,6 @@ static inline void reset_getopt(void)
 #endif
 }
 
-void daemon_mode(void);
-
 /******************************************************************************
  Getopt utility macros
  
@@ -126,6 +124,4 @@ void daemon_mode(void);
     } \
     settings->var2##_set = 1;
 
-void resolutions_help(const char * padding);
-void parse_resolution_opt(const char * optarg, int * width, int * height);
 

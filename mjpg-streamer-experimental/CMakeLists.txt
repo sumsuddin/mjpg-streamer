@@ -79,8 +79,7 @@ set (CMAKE_INSTALL_RPATH ${CMAKE_INSTALL_PREFIX}/${MJPG_STREAMER_PLUGIN_INSTALL_
 set (CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
 
 
-add_executable(mjpg_streamer mjpg_streamer.cpp
-                             utils.cpp)
+add_executable(mjpg_streamer mjpg_streamer.cpp)
 
 target_link_libraries(mjpg_streamer pthread dl input_opencv output_http)
 install(TARGETS mjpg_streamer DESTINATION bin)
