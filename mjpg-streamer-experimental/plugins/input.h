@@ -82,8 +82,8 @@ struct _input {
     
     void *context; // private data for the plugin
 
-    int (*init)(input_parameter *, int id);
-    int (*stop)(int);
-    int (*run)(int);
-    int (*cmd)(int plugin, unsigned int control_id, unsigned int group, int value, char *value_str);
+    int init(input_parameter *, int id);
+    int stop(int);
+    int run(int);
+    int cmd(int plugin, unsigned int control_id, unsigned int group, int value, char *value_str);
 };

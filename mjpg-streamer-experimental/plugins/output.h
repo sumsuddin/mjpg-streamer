@@ -48,9 +48,9 @@ struct _output {
     struct _control *out_parameters;
     int parametercount;
 
-    int (*init)(output_parameter *param, int id);
-    int (*stop)(int);
-    int (*run)(int);
-    int (*cmd)(int plugin, unsigned int control_id, unsigned int group, int value, char *value_str);
+    int init(output_parameter *param, int id);
+    int stop(int);
+    int run(int);
+    int cmd(int plugin, unsigned int control_id, unsigned int group, int value, char *value_str);
 };
 

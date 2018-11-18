@@ -50,8 +50,6 @@
 #define V4L2_CTRL_TYPE_STRING_SUPPORTED
 #endif
 
-#include "../output_file/output_file.h"
-
 
 static globals *pglobal;
 extern context servers[MAX_OUTPUT_PLUGINS];
@@ -180,7 +178,7 @@ Return Value: * buffer.: will become filled with bytes read
 /* read just a single line or timeout */
 int _readline(int fd, iobuffer *iobuf, void *buffer, size_t len, int timeout)
 {
-    char c = '\0', *out = buffer;
+    char c = '\0', *out = (char*)buffer;
     int i;
 
     memset(buffer, 0, len);
@@ -414,7 +412,7 @@ void send_snapshot(cfd *context_fd, int input_number)
     frame_size = pglobal->in[input_number].size;
 
     /* allocate a buffer for this single frame */
-    if((frame = malloc(frame_size + 1)) == NULL) {
+    if((frame = (unsigned char*)malloc(frame_size + 1)) == NULL) {
         free(frame);
         pthread_mutex_unlock(&pglobal->in[input_number].db);
         send_error(context_fd->fd, 500, "not enough memory");
@@ -491,7 +489,7 @@ void send_stream(cfd *context_fd, int input_number)
             DBG("increasing buffer size to %d\n", frame_size);
 
             max_frame_size = frame_size + TEN_K;
-            if((tmp = realloc(frame, max_frame_size)) == NULL) {
+            if((tmp = (unsigned char*)realloc(frame, max_frame_size)) == NULL) {
                 free(frame);
                 pthread_mutex_unlock(&pglobal->in[input_number].db);
                 send_error(context_fd->fd, 500, "not enough memory");
@@ -819,7 +817,7 @@ void execute_cgi(int id, int fd, char *parameter, char *query_string)
     buffer_length = 3;
     buffer_length = strlen(fn_buffer) + strlen(enviroment) + strlen(parameter) + 256;
 
-    buffer = malloc(buffer_length);
+    buffer = (char*)malloc(buffer_length);
     if (buffer == NULL) {
         exit(EXIT_FAILURE);
     }
@@ -1115,37 +1113,6 @@ void *client_thread(void *arg)
         }
         #endif
     #endif
-    } else if(strstr(buffer, "GET /?action=take") != NULL) {
-        int len;
-        req.type = A_TAKE;
-        query_suffixed = 255;
-
-        /* advance by the length of known string */
-        if((pb = strstr(buffer, "GET /?action=take")) == NULL) {
-            DBG("HTTP request seems to be malformed\n");
-            send_error(lcfd.fd, 400, "Malformed HTTP request");
-            close(lcfd.fd);
-            query_suffixed = 0;
-            return NULL;
-        }
-        pb += strlen("GET /?action=take"); // a pb points to thestring after the first & after command
-
-        /* only accept certain characters */
-        len = MIN(MAX(strspn(pb, "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ_-=&1234567890%./"), 0), 100);
-        req.parameter = malloc(len + 1);
-        if(req.parameter == NULL) {
-            exit(EXIT_FAILURE);
-        }
-        memset(req.parameter, 0, len + 1);
-        strncpy(req.parameter, pb, len);
-
-        if(unescape(req.parameter) == -1) {
-            free(req.parameter);
-            send_error(lcfd.fd, 500, "could not properly unescape command parameter string");
-            LOG("could not properly unescape command parameter string\n");
-            close(lcfd.fd);
-            return NULL;
-        }
     } else if((strstr(buffer, "GET /input") != NULL) && (strstr(buffer, ".json") != NULL)) {
         req.type = A_INPUT_JSON;
         query_suffixed = 255;
@@ -1174,7 +1141,7 @@ void *client_thread(void *arg)
         /* only accept certain characters */
         len = MIN(MAX(strspn(pb, "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ_-=&1234567890%./"), 0), 100);
 
-        req.parameter = malloc(len + 1);
+        req.parameter = (char*)malloc(len + 1);
         if(req.parameter == NULL) {
             exit(EXIT_FAILURE);
         }
@@ -1205,7 +1172,7 @@ void *client_thread(void *arg)
 
         pb += strlen("GET /");
         len = MIN(MAX(strspn(pb, "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ._-1234567890"), 0), 100);
-        req.parameter = malloc(len + 1);
+        req.parameter = (char*)malloc(len + 1);
         if(req.parameter == NULL) {
             exit(EXIT_FAILURE);
         }
@@ -1219,12 +1186,12 @@ void *client_thread(void *arg)
             if (pb != NULL) {
                 pb++; // skip the ?
                 len = strspn(pb, "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ._-1234567890=&");
-                req.query_string = malloc(len + 1);
+                req.query_string = (char*)malloc(len + 1);
                 if (req.query_string == NULL)
                     exit(EXIT_FAILURE);
                 strncpy(req.query_string, pb, len);
             } else {
-                req.query_string = malloc(2);
+                req.query_string = (char*)malloc(2);
                 if (req.query_string == NULL)
                     exit(EXIT_FAILURE);
                 sprintf(req.query_string, " ");
@@ -1354,54 +1321,7 @@ void *client_thread(void *arg)
         else
             send_file(lcfd.pc->id, lcfd.fd, req.parameter);
         break;
-    /*
-        With the take argument we try to save the current image to file before we transmit it to the user.
-        This is done trough the output_file plugin.
-        If it not loaded, or the file could not be saved then we won't transmit the frame.
-    */
-    case A_TAKE: {
-        int i, ret = 0, found = 0;
-        for (i = 0; i<pglobal->outcnt; i++) {
-            if (pglobal->out[i].name != NULL) {
-                if (strstr(pglobal->out[i].name, "FILE output plugin")) {
-                    found = 255;
-                    DBG("output_file found id: %d\n", i);
-                    char *filename = NULL;
-                    char *filenamearg = NULL;
-                    int len = 0;
-                    DBG("Buffer: %s \n", req.parameter);
-                    if((filename = strstr(req.parameter, "filename=")) != NULL) {
-                        filename += strlen("filename=");
-                        char *fn = strchr(filename, '&');
-                        if (fn == NULL)
-                            len = strlen(filename);
-                        else
-                            len = (int)(fn - filename);
-                        filenamearg = (char*)calloc(len, sizeof(char));
-                        memcpy(filenamearg, filename, len);
-                        DBG("Filename = %s\n", filenamearg);
-                        //int output_cmd(int plugin_id, unsigned int control_id, unsigned int group, int value, char *valueStr)
-                        ret = pglobal->out[i].cmd(i, OUT_FILE_CMD_TAKE, IN_CMD_GENERIC, 0, filenamearg);
-                    } else {
-                        DBG("filename is not specified int the URL\n");
-                        send_error(lcfd.fd, 404, "The &filename= must present for the take command in the URL");
-                    }
-                    break;
-                }
-            }
-        }
 
-        if (found == 0) {
-            LOG("FILE CHANGE TEST output plugin not loaded\n");
-            send_error(lcfd.fd, 404, "FILE output plugin not loaded, taking snapshot not possible");
-        } else {
-            if (ret == 0) {
-                send_snapshot(&lcfd, input_number);
-            } else {
-                send_error(lcfd.fd, 404, "Taking snapshot failed!");
-            }
-        }
-        } break;
     case A_CGI:
         DBG("cgi script: %s requested\n", req.parameter);
         execute_cgi(lcfd.pc->id, lcfd.fd, req.parameter, req.query_string);
@@ -1424,7 +1344,7 @@ Return Value: -
 ******************************************************************************/
 void server_cleanup(void *arg)
 {
-    context *pcontext = arg;
+    context *pcontext = (context*)arg;
     int i;
 
     OPRINT("cleaning up resources allocated by server thread #%02d\n", pcontext->id);
@@ -1453,7 +1373,7 @@ void *server_thread(void *arg)
     int err;
     int i;
 
-    context *pcontext = arg;
+    context *pcontext = (context*)arg;
     pglobal = pcontext->pglobal;
 
     /* set cleanup handler to cleanup resources */
@@ -1536,7 +1456,7 @@ void *server_thread(void *arg)
     /* create a child for every client that connects */
     while(!pglobal->stop) {
         //int *pfd = (int *)malloc(sizeof(int));
-        cfd *pcfd = malloc(sizeof(cfd));
+        cfd *pcfd = (cfd*)malloc(sizeof(cfd));
 
         if(pcfd == NULL) {
             fprintf(stderr, "failed to allocate (a very small amount of) memory\n");
@@ -1642,9 +1562,9 @@ void send_input_JSON(int fd, int input_number)
                         itemLength += strlen("\"\": \"\"");
 
                         if (menuString == NULL) {
-                            menuString = calloc(itemLength + 5, sizeof(char));
+                            menuString = (char*)calloc(itemLength + 5, sizeof(char));
                         } else {
-                            menuString = realloc(menuString, (strlen(menuString) + itemLength + 5) * (sizeof(char)));
+                            menuString = (char*)realloc(menuString, (strlen(menuString) + itemLength + 5) * (sizeof(char)));
                         }
 
                         if (menuString == NULL) {
@@ -1737,9 +1657,9 @@ void send_input_JSON(int fd, int input_number)
                 if(j != (pglobal->in[input_number].in_formats[i].resolutionCount - 1)) {
                     resolutionsStringLength += (strlen("\"\": \"x\", ") + 5);
                     if (resolutionsString == NULL)
-                        resolutionsString = calloc(resolutionsStringLength, sizeof(char*));
+                        resolutionsString = (char*)calloc(resolutionsStringLength, sizeof(char*));
                     else
-                        resolutionsString = realloc(resolutionsString, resolutionsStringLength * sizeof(char*));
+                        resolutionsString = (char*)realloc(resolutionsString, resolutionsStringLength * sizeof(char*));
                     if (resolutionsString == NULL) {
                         DBG("Realloc/calloc failed\n");
                         return;
@@ -1753,9 +1673,9 @@ void send_input_JSON(int fd, int input_number)
                 } else {
                     resolutionsStringLength += (strlen("\"\": \"x\"")+5);
                     if (resolutionsString == NULL)
-                        resolutionsString = calloc(resolutionsStringLength, sizeof(char*));
+                        resolutionsString = (char*)calloc(resolutionsStringLength, sizeof(char*));
                     else
-                        resolutionsString = realloc(resolutionsString, resolutionsStringLength * sizeof(char*));
+                        resolutionsString = (char*)realloc(resolutionsString, resolutionsStringLength * sizeof(char*));
                     if (resolutionsString == NULL) {
                         DBG("Realloc/calloc failed\n");
                         return;
@@ -1933,7 +1853,7 @@ void send_output_JSON(int fd, int input_number)
             "\"controls\": [\n");
     if(pglobal->out[input_number].out_parameters != NULL) {
         for(i = 0; i < pglobal->out[input_number].parametercount; i++) {
-            char *menuString = calloc(0, 0);
+            char *menuString = (char*)calloc(0, 0);
             if(pglobal->out[input_number].out_parameters[i].ctrl.type == V4L2_CTRL_TYPE_MENU) {
                 if(pglobal->out[input_number].out_parameters[i].menuitems != NULL) {
                     int j, k = 1;
@@ -1941,9 +1861,9 @@ void send_output_JSON(int fd, int input_number)
                         int prevSize = strlen(menuString);
                         int itemLength = strlen((char*)&pglobal->out[input_number].out_parameters[i].menuitems[j].name)  + strlen("\"\": \"\"");
                         if (menuString == NULL) {
-                            menuString = calloc(itemLength, sizeof(char));
+                            menuString = (char*)calloc(itemLength, sizeof(char));
                         } else {
-                            menuString = realloc(menuString, (strlen(menuString) + itemLength) * (sizeof(char)));
+                            menuString = (char*)realloc(menuString, (strlen(menuString) + itemLength) * (sizeof(char)));
                         }
 
                         if (menuString == NULL) {

@@ -42,6 +42,8 @@
 #include "httpd.h"
 
 #define OUTPUT_PLUGIN_NAME "HTTP output plugin"
+
+#define LOG(...) { char _bf[1024] = {0}; snprintf(_bf, sizeof(_bf)-1, __VA_ARGS__); fprintf(stderr, "%s", _bf); syslog(LOG_INFO, "%s", _bf); }
 /*
  * keep context for each server
  */
@@ -163,7 +165,7 @@ int output_init(output_parameter *param, int id)
         case 8:
         case 9:
             DBG("case 8,9\n");
-            www_folder = malloc(strlen(optarg) + 2);
+            www_folder = (char*)malloc(strlen(optarg) + 2);
             strcpy(www_folder, optarg);
             if(optarg[strlen(optarg)-1] != '/')
                 strcat(www_folder, "/");
@@ -192,7 +194,7 @@ int output_init(output_parameter *param, int id)
     OPRINT("username:password....: %s\n", (credentials == NULL) ? "disabled" : credentials);
     OPRINT("commands.............: %s\n", (nocommands) ? "disabled" : "enabled");
 
-    param->global->out[id].name = malloc((strlen(OUTPUT_PLUGIN_NAME) + 1) * sizeof(char));
+    param->global->out[id].name = (char*)malloc((strlen(OUTPUT_PLUGIN_NAME) + 1) * sizeof(char));
     sprintf(param->global->out[id].name, OUTPUT_PLUGIN_NAME);
 
     return 0;
@@ -244,4 +246,19 @@ int output_cmd(int plugin, unsigned int control_id, unsigned int group, int valu
 {
     DBG("command (%d, value: %d) for group %d triggered for plugin instance #%02d\n", control_id, value, group, plugin);
     return 0;
+}
+
+int output::init(output_parameter *param, int id) {
+    LOG("SD\n");
+    return output_init(param, id);
+}
+int output::stop(int id) {
+    return output_stop(id);
+}
+int output::run(int id) {
+    return output_run(id);
+}
+
+int output::cmd(int plugin, unsigned int control_id, unsigned int group, int value, char *value_str) {
+    return output_cmd(plugin, control_id, group, value);
 }

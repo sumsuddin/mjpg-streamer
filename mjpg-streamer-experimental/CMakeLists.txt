@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 2.8.3)
 set(CMAKE_MODULE_PATH ${CMAKE_SOURCE_DIR}/cmake ${CMAKE_MODULE_PATH})
 
-project("mjpg-streamer" C)
+project("mjpg-streamer")
 
 # If the user doesn't manually specify a build type, use 'Release'
 message("CMAKE_BUILD_TYPE = ${CMAKE_BUILD_TYPE}")
@@ -62,7 +62,6 @@ add_subdirectory(plugins/input_opencv)
 # Output plugins
 #
 
-add_subdirectory(plugins/output_file)
 add_subdirectory(plugins/output_http)
 
 #
@@ -80,10 +79,10 @@ set (CMAKE_INSTALL_RPATH ${CMAKE_INSTALL_PREFIX}/${MJPG_STREAMER_PLUGIN_INSTALL_
 set (CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
 
 
-add_executable(mjpg_streamer mjpg_streamer.c
-                             utils.c)
+add_executable(mjpg_streamer mjpg_streamer.cpp
+                             utils.cpp)
 
-target_link_libraries(mjpg_streamer pthread dl)
+target_link_libraries(mjpg_streamer pthread dl input_opencv output_http)
 install(TARGETS mjpg_streamer DESTINATION bin)
 
 #

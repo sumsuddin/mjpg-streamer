@@ -207,12 +207,6 @@ int main(int argc, char *argv[])
     //openlog("MJPG-streamer ", LOG_PID|LOG_CONS|LOG_PERROR, LOG_USER);
     syslog(LOG_INFO, "starting application");
 
-    /* fork to the background */
-    if(daemon) {
-        LOG("enabling daemon mode");
-        daemon_mode();
-    }
-
     /* ignore SIGPIPE (send by OS if transmitting to closed TCP sockets) */
     signal(SIGPIPE, SIG_IGN);
 
@@ -222,7 +216,6 @@ int main(int argc, char *argv[])
         closelog();
         exit(EXIT_FAILURE);
     }
-
 
     /* open input plugin */
     for(i = 0; i < global.incnt; i++) {
@@ -239,37 +232,10 @@ int main(int argc, char *argv[])
         }
 
         tmp = (size_t)(strchr(input[i], ' ') - input[i]);
-        global.in[i].stop      = 0;
         global.in[i].context   = NULL;
         global.in[i].buf       = NULL;
         global.in[i].size      = 0;
         global.in[i].plugin = (tmp > 0) ? strndup(input[i], tmp) : strdup(input[i]);
-        global.in[i].handle = dlopen(global.in[i].plugin, RTLD_LAZY);
-        if(!global.in[i].handle) {
-            LOG("ERROR: could not find input plugin\n");
-            LOG("       Perhaps you want to adjust the search path with:\n");
-            LOG("       # export LD_LIBRARY_PATH=/path/to/plugin/folder\n");
-            LOG("       dlopen: %s\n", dlerror());
-            closelog();
-            exit(EXIT_FAILURE);
-        }
-        global.in[i].init = dlsym(global.in[i].handle, "input_init");
-        if(global.in[i].init == NULL) {
-            LOG("%s\n", dlerror());
-            exit(EXIT_FAILURE);
-        }
-        global.in[i].stop = dlsym(global.in[i].handle, "input_stop");
-        if(global.in[i].stop == NULL) {
-            LOG("%s\n", dlerror());
-            exit(EXIT_FAILURE);
-        }
-        global.in[i].run = dlsym(global.in[i].handle, "input_run");
-        if(global.in[i].run == NULL) {
-            LOG("%s\n", dlerror());
-            exit(EXIT_FAILURE);
-        }
-        /* try to find optional command */
-        global.in[i].cmd = dlsym(global.in[i].handle, "input_cmd");
 
         global.in[i].param.parameters = strchr(input[i], ' ');
 
@@ -292,33 +258,6 @@ int main(int argc, char *argv[])
     for(i = 0; i < global.outcnt; i++) {
         tmp = (size_t)(strchr(output[i], ' ') - output[i]);
         global.out[i].plugin = (tmp > 0) ? strndup(output[i], tmp) : strdup(output[i]);
-        global.out[i].handle = dlopen(global.out[i].plugin, RTLD_LAZY);
-        if(!global.out[i].handle) {
-            LOG("ERROR: could not find output plugin %s\n", global.out[i].plugin);
-            LOG("       Perhaps you want to adjust the search path with:\n");
-            LOG("       # export LD_LIBRARY_PATH=/path/to/plugin/folder\n");
-            LOG("       dlopen: %s\n", dlerror());
-            closelog();
-            exit(EXIT_FAILURE);
-        }
-        global.out[i].init = dlsym(global.out[i].handle, "output_init");
-        if(global.out[i].init == NULL) {
-            LOG("%s\n", dlerror());
-            exit(EXIT_FAILURE);
-        }
-        global.out[i].stop = dlsym(global.out[i].handle, "output_stop");
-        if(global.out[i].stop == NULL) {
-            LOG("%s\n", dlerror());
-            exit(EXIT_FAILURE);
-        }
-        global.out[i].run = dlsym(global.out[i].handle, "output_run");
-        if(global.out[i].run == NULL) {
-            LOG("%s\n", dlerror());
-            exit(EXIT_FAILURE);
-        }
-
-        /* try to find optional command */
-        global.out[i].cmd = dlsym(global.out[i].handle, "output_cmd");
 
         global.out[i].param.parameters = strchr(output[i], ' ');
 
