@@ -200,54 +200,8 @@ int main(int argc, char *argv[])
     output[0] = "output_http.so --port 8080";
     global.outcnt = 0;
     global.incnt = 0;
-
-    /* parameter parsing */
-    while(1) {
-        int c = 0;
-        static struct option long_options[] = {
-            {"help", no_argument, NULL, 'h'},
-            {"input", required_argument, NULL, 'i'},
-            {"output", required_argument, NULL, 'o'},
-            {"version", no_argument, NULL, 'v'},
-            {"background", no_argument, NULL, 'b'},
-            {NULL, 0, NULL, 0}
-        };
-
-        c = getopt_long(argc, argv, "hi:o:vb", long_options, NULL);
-
-        /* no more options to parse */
-        if(c == -1) break;
-
-        switch(c) {
-        case 'i':
-            input[global.incnt++] = strdup(optarg);
-            break;
-
-        case 'o':
-            output[global.outcnt++] = strdup(optarg);
-            break;
-
-        case 'v':
-            printf("MJPG Streamer Version: %s\n",
-#ifdef GIT_HASH
-            GIT_HASH
-#else
-            SOURCE_VERSION
-#endif
-            );
-            return 0;
-            break;
-
-        case 'b':
-            daemon = 1;
-            break;
-
-        case 'h': /* fall through */
-        default:
-            help(argv[0]);
-            exit(EXIT_FAILURE);
-        }
-    }
+	input[global.incnt++] = "input_opencv.so -d 0";
+	output[global.outcnt++] = "output_http.so -w /usr/local/www -p 8877";
 
     openlog("MJPG-streamer ", LOG_PID | LOG_CONS, LOG_USER);
     //openlog("MJPG-streamer ", LOG_PID|LOG_CONS|LOG_PERROR, LOG_USER);
@@ -269,21 +223,6 @@ int main(int argc, char *argv[])
         exit(EXIT_FAILURE);
     }
 
-    /*
-     * messages like the following will only be visible on your terminal
-     * if not running in daemon mode
-     */
-#ifdef GIT_HASH
-    LOG("MJPG Streamer Version: git rev: %s\n", GIT_HASH);
-#else
-    LOG("MJPG Streamer Version.: %s\n", SOURCE_VERSION);
-#endif
-
-    /* check if at least one output plugin was selected */
-    if(global.outcnt == 0) {
-        /* no? Then use the default plugin instead */
-        global.outcnt = 1;
-    }
 
     /* open input plugin */
     for(i = 0; i < global.incnt; i++) {
