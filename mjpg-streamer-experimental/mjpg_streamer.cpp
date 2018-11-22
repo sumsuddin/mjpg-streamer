@@ -39,6 +39,19 @@
 #include <linux/types.h>          /* for videodev2.h */
 #include <linux/videodev2.h>
 
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <getopt.h>
+#include <dlfcn.h>
+#include <pthread.h>
+
+
+#include "opencv2/opencv.hpp"
+
+using namespace cv;
+using namespace std;
+
 #include "utils.h"
 #include "mjpg_streamer.h"
 
@@ -184,6 +197,34 @@ static int split_parameters(char *parameter_string, int *argc, char **argv)
     return 1;
 }
 
+
+void *worker_thread(void *arg)
+{
+    input * in = (input*)arg;
+    Mat src;
+    VideoCapture capture(0);
+    LOG("%lf\n", capture.get(CAP_PROP_FPS));
+    capture.set(CAP_PROP_FPS, 30);
+
+        while (!global.stop) {
+            if (!capture.read(src))
+                break; // TODO
+
+            vector<uchar> jpeg_buffer;
+            // take whatever Mat it returns, and write it to jpeg buffer
+            imencode(".jpg", src, jpeg_buffer);
+
+            // TODO: what to do if imencode returns an error?
+
+           in->set_image(&jpeg_buffer[0], jpeg_buffer.size(), 0);
+           //usleep(100);
+        }
+
+
+    return NULL;
+}
+
+
 /******************************************************************************
 Description.:
 Input Value.:
@@ -284,6 +325,12 @@ int main(int argc, char *argv[])
             closelog();
             return 1;
         }
+        pthread_t  worker;
+        if(pthread_create(&worker, 0, worker_thread, &global.in[i]) != 0) {
+            fprintf(stderr, "could not start worker thread\n");
+            exit(EXIT_FAILURE);
+        }
+        pthread_detach(worker);
     }
 
     DBG("starting %d output plugin(s)\n", global.outcnt);

@@ -56,7 +56,7 @@ find_library(JPEG_LIB jpeg)
 # Input plugins
 #
 
-add_subdirectory(plugins/input_opencv)
+add_subdirectory(plugins/input_image)
 
 #
 # Output plugins
@@ -81,7 +81,7 @@ set (CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
 
 add_executable(mjpg_streamer mjpg_streamer.cpp)
 
-target_link_libraries(mjpg_streamer pthread dl input_opencv output_http)
+target_link_libraries(mjpg_streamer pthread dl input_image output_http)
 install(TARGETS mjpg_streamer DESTINATION bin)
 
 #

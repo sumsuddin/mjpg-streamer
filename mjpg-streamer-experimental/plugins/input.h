@@ -85,5 +85,6 @@ struct _input {
     int init(input_parameter *, int id);
     int stop(int);
     int run(int);
+    int set_image(unsigned char *buffer, int buffer_size, int id);
     int cmd(int plugin, unsigned int control_id, unsigned int group, int value, char *value_str);
 };
